@@ -74,7 +74,7 @@ wybor_modulu = st.session_state.active_module
 # MODUŁ 1: OBŁOŻENIE MASZYN
 # ==============================================================================
 if wybor_modulu == "🏭 Obłożenie Maszyn":
-    st.title("🏭 System Monitorowania Obciążenia Parku Maszynowego")
+    st.title("🏭 System MMMonitorowania Obciążenia Parku Maszynowego")
 
     SPREADSHEET_ID = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"
     GID_WYDAJNOSC = "1300602740"
