@@ -77,16 +77,12 @@ wybor_modulu = st.session_state.active_module
 if wybor_modulu == "🏭 Obłożenie Maszyn":
     st.title("🏭 System Monitorowania Obciążenia Parku Maszynowego")
 
-    # POPRAWIONE RÓŻNE ID I GID DLA DWÓCH PLIKÓW GOOGLE SHEETS
-    ID_OBCIAZENIE = (
-        "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"  # Plan produkcyjny
-    )
+    # POPRAWNE ADRESY DANYCH:
+    ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"  # Plan produkcyjny
     GID_OBCIAZENIE = "49369695"  # Zakładka Lech
 
-    ID_WYDAJNOSC = (
-        "1dBr3JJqAfBPXsuik8yJP_PuBhTvDFsBXC6JRr3XUQYQ"  # Baza wydajności
-    )
-    GID_WYDAJNOSC = "1403416135"  # Zakładka Obłożenie maszyn
+    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"  # Właściwy plik wydajności
+    GID_WYDAJNOSC = "960305301"
 
     DOBOVA_DOSTEPNOSC_H = 20.0
     LIMIT_MAX_H = 24.0
