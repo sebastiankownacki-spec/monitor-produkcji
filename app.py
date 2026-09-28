@@ -77,11 +77,11 @@ wybor_modulu = st.session_state.active_module
 if wybor_modulu == "🏭 Obłożenie Maszyn":
     st.title("🏭 System Monitorowania Obciążenia Parku Maszynowego")
 
-    # POPRAWNE ADRESY DANYCH:
+    # POPRAWNE ADRESY DANYCH GOOGLE SHEETS
     ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"  # Plan produkcyjny
     GID_OBCIAZENIE = "49369695"  # Zakładka Lech
 
-    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"  # Właściwy plik wydajności
+    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"  # Plik z wydajnościami
     GID_WYDAJNOSC = "960305301"
 
     DOBOVA_DOSTEPNOSC_H = 20.0
@@ -126,9 +126,19 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         st.sidebar.error(f"❌ Błąd pobierania danych: {e}")
         st.stop()
 
-    # --- 1. Czyszczenie bazy wydajności ---
-    df_wyd = df_wydajnosc_raw.iloc[:, [0, 1, 2]].copy()
+    # --- 1. Dynamiczne czyszczenie bazy wydajności ---
+    df_wyd_raw = df_wydajnosc_raw.copy()
+    df_wyd_raw.columns = df_wyd_raw.columns.astype(str).str.strip()
+
+    col_maszyna_wyd = [c for c in df_wyd_raw.columns if "maszyna" in c.lower()][0]
+    col_skladnik_wyd = [c for c in df_wyd_raw.columns if "składnik" in c.lower() or "danie" in c.lower() or "skladnik" in c.lower()][0]
+    col_wyd_kg = [c for c in df_wyd_raw.columns if "wydajność" in c.lower() or "wydajnosc" in c.lower()][0]
+
+    df_wyd = df_wyd_raw[[col_maszyna_wyd, col_skladnik_wyd, col_wyd_kg]].copy()
     df_wyd.columns = ["Maszyna", "Skladnik", "Wydajnosc_kg_h"]
+
+    df_wyd["Maszyna"] = df_wyd["Maszyna"].astype(str).str.strip()
+    df_wyd["Skladnik"] = df_wyd["Skladnik"].astype(str).str.strip()
 
     df_wyd["Wydajnosc_Efektywna"] = (
         df_wyd["Wydajnosc_kg_h"]
@@ -143,18 +153,27 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     )
     df_wyd = df_wyd.dropna(subset=["Maszyna", "Wydajnosc_Efektywna"])
 
-    wystepujace_maszyny = sorted(df_wyd["Maszyna"].unique().tolist())
+    wystepujace_maszyny = sorted(df_wyd["Maszyna"].dropna().unique().tolist())
     if "Praca ręczna / Brak maszyny" not in wystepujace_maszyny:
         wystepujace_maszyny.append("Praca ręczna / Brak maszyny")
 
-    # --- 2. Czyszczenie pliku z obciążeniem ---
-    df_obc = df_obciazenie_raw.iloc[:, [0, 7, 10, 27]].copy()
+    # --- 2. Dynamiczne czyszczenie pliku z obciążeniem ---
+    df_obc_raw = df_obciazenie_raw.copy()
+    df_obc_raw.columns = df_obc_raw.columns.astype(str).str.strip()
+
+    col_data_obc = [c for c in df_obc_raw.columns if "data produkcji" in c.lower() or "data menu" in c.lower()][0]
+    col_skladnik_obc = [c for c in df_obc_raw.columns if "składnik" in c.lower() or "skladnik" in c.lower()][0]
+    col_ilosc_obc = [c for c in df_obc_raw.columns if "zleceni" in c.lower() or "wyprodukowan" in c.lower() or "ilość" in c.lower()][0]
+    col_maszyna_obc = [c for c in df_obc_raw.columns if "maszyna" in c.lower()][0]
+
+    df_obc = df_obc_raw[[col_data_obc, col_skladnik_obc, col_ilosc_obc, col_maszyna_obc]].copy()
     df_obc.columns = ["Data", "Skladnik", "Ilosc", "Maszyna"]
+
+    df_obc["Maszyna"] = df_obc["Maszyna"].astype(str).str.strip()
+    df_obc["Skladnik"] = df_obc["Skladnik"].astype(str).str.strip()
 
     df_obc["Data"] = pd.to_datetime(df_obc["Data"], errors="coerce")
     df_obc = df_obc.dropna(subset=["Data"])
-
-    # Filtrowanie błędnych dat z XIX wieku (1899 r.)
     df_obc = df_obc[df_obc["Data"].dt.year >= 2020]
     df_obc["Data_Date"] = df_obc["Data"].dt.date
 
@@ -173,8 +192,16 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         .str.replace(",", ".")
     )
     df_obc["Ilosc"] = pd.to_numeric(df_obc["Ilosc"], errors="coerce")
-    df_obc["Maszyna"] = df_obc["Maszyna"].fillna("Praca ręczna / Brak maszyny")
+    
+    # Przemianowanie nieprzypisanych wierszy na 'Praca ręczna / Brak maszyny'
+    df_obc["Maszyna"] = df_obc["Maszyna"].replace(["nan", "None", "", "NaN"], pd.NA).fillna("Praca ręczna / Brak maszyny")
     df_obc = df_obc.dropna(subset=["Data_Date", "Ilosc"])
+
+    # Pobranie unikalnych maszyn również z obciążenia
+    for m in df_obc["Maszyna"].unique():
+        if m not in wystepujace_maszyny:
+            wystepujace_maszyny.append(m)
+    wystepujace_maszyny = sorted(list(set(wystepujace_maszyny)))
 
     # --- 3. Przeliczanie godzin ---
     df_merged = df_obc.merge(df_wyd, on=["Skladnik", "Maszyna"], how="left")
