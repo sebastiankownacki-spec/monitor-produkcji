@@ -77,11 +77,10 @@ wybor_modulu = st.session_state.active_module
 if wybor_modulu == "🏭 Obłożenie Maszyn":
     st.title("🏭 System Monitorowania Obciążenia Parku Maszynowego")
 
-    # POPRAWNE ADRESY DANYCH GOOGLE SHEETS
-    ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"  # Plan produkcyjny
-    GID_OBCIAZENIE = "49369695"  # Zakładka Lech
+    ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"
+    GID_OBCIAZENIE = "49369695"
 
-    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"  # Plik z wydajnościami
+    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"
     GID_WYDAJNOSC = "960305301"
 
     DOBOVA_DOSTEPNOSC_H = 20.0
@@ -153,9 +152,11 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     )
     df_wyd = df_wyd.dropna(subset=["Maszyna", "Wydajnosc_Efektywna"])
 
-    wystepujace_maszyny = sorted(df_wyd["Maszyna"].dropna().unique().tolist())
-    if "Praca ręczna / Brak maszyny" not in wystepujace_maszyny:
-        wystepujace_maszyny.append("Praca ręczna / Brak maszyny")
+    # WYKLUCZENIE 'Praca ręczna / Brak maszyny' z bazy wydajności
+    wystepujace_maszyny = [
+        m for m in sorted(df_wyd["Maszyna"].dropna().unique().tolist())
+        if "brak maszyny" not in m.lower()
+    ]
 
     # --- 2. Dynamiczne czyszczenie pliku z obciążeniem ---
     df_obc_raw = df_obciazenie_raw.copy()
@@ -193,13 +194,15 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     )
     df_obc["Ilosc"] = pd.to_numeric(df_obc["Ilosc"], errors="coerce")
     
-    # Przemianowanie nieprzypisanych wierszy na 'Praca ręczna / Brak maszyny'
-    df_obc["Maszyna"] = df_obc["Maszyna"].replace(["nan", "None", "", "NaN"], pd.NA).fillna("Praca ręczna / Brak maszyny")
-    df_obc = df_obc.dropna(subset=["Data_Date", "Ilosc"])
+    # ODRZUCENIE nieprzypisanych wierszy / 'Praca ręczna / Brak maszyny'
+    df_obc = df_obc[
+        ~df_obc["Maszyna"].astype(str).str.lower().isin(["nan", "none", "", "nan", "praca ręczna / brak maszyny"])
+    ]
+    df_obc = df_obc.dropna(subset=["Data_Date", "Ilosc", "Maszyna"])
 
-    # Pobranie unikalnych maszyn również z obciążenia
+    # Pobranie unikalnych maszyn z obciążenia (z wykluczeniem braku maszyny)
     for m in df_obc["Maszyna"].unique():
-        if m not in wystepujace_maszyny:
+        if m not in wystepujace_maszyny and "brak maszyny" not in m.lower():
             wystepujace_maszyny.append(m)
     wystepujace_maszyny = sorted(list(set(wystepujace_maszyny)))
 
