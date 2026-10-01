@@ -354,7 +354,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     text="Czas_HHMM",
                     custom_data=["Skladnik", "Ilosc", "Czas_HHMM"],
                     labels={"ZaplanowaneGodziny_h": "Czas [Godziny]", "Skladnik": "Składnik / Produkcja"},
-                    height=1500,  # DUŻA WYSOKOŚĆ DLA CZYTELNOŚCI SKŁADNIKÓW
+                    height=1000,  # DUŻA WYSOKOŚĆ DLA CZYTELNOŚCI SKŁADNIKÓW
                 )
 
                 fig_breakdown.update_traces(
