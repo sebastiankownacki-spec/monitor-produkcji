@@ -259,14 +259,13 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 "ZASTÓJ (<04:00)": "#ffa15a",
             }
 
-            # Wymuszona kolejność statusów w legendzie
             status_order = [
                 "PRZECIĄŻENIE (>20:00)",
                 "Norma (04:00 - 20:00)",
                 "ZASTÓJ (<04:00)",
             ]
 
-            # 1. Wykres dla maszyn LECH
+            # 1. Wykres dla maszyn LECH (powiększony do height=500)
             df_lech = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")]
             if not df_lech.empty:
                 st.markdown("### 🏭 Maszyny LECH")
@@ -281,6 +280,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     title=f"Liczba zaplanowanych godzin pracy maszyn LECH ({selected_date})",
                     custom_data=["Data_Format", "Czas_produkcji"],
                     labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
+                    height=500,
                 )
                 fig_lech.update_traces(
                     textposition="outside",
@@ -295,7 +295,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
 
             st.markdown("---")
 
-            # 2. Wykres dla maszyn H4
+            # 2. Wykres dla maszyn H4 (powiększony do height=500)
             df_h4 = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("h4")]
             if not df_h4.empty:
                 st.markdown("### 🏭 Maszyny H4")
@@ -310,6 +310,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     title=f"Liczba zaplanowanych godzin pracy maszyn H4 ({selected_date})",
                     custom_data=["Data_Format", "Czas_produkcji"],
                     labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
+                    height=500,
                 )
                 fig_h4.update_traces(
                     textposition="outside",
@@ -323,7 +324,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 st.plotly_chart(fig_h4, use_container_width=True)
 
             # ------------------------------------------------------------------------------
-            # SZCZEGÓŁOWA ANALIZA PRZECIĄŻENIA (DRILL-DOWN DLA SKŁADNIKÓW)
+            # SZCZEGÓŁOWA ANALIZA PRZECIĄŻENIA (WYŻSZY I BARDZIEJ CZYTELNY WYKRES)
             # ------------------------------------------------------------------------------
             st.divider()
             st.subheader("🔍 Szczegółowa analiza przeciążeń (Składniki / Zadania)")
@@ -353,12 +354,17 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     text="Czas_HHMM",
                     custom_data=["Skladnik", "Ilosc", "Czas_HHMM"],
                     labels={"ZaplanowaneGodziny_h": "Czas [Godziny]", "Skladnik": "Składnik / Produkcja"},
+                    height=680,  # DUŻA WYSOKOŚĆ DLA CZYTELNOŚCI SKŁADNIKÓW
                 )
 
                 fig_breakdown.update_traces(
                     hovertemplate="<b>Składnik:</b> %{customdata[0]}<br>"
                     + "<b>Ilość:</b> %{customdata[1]} kg/szt<br>"
                     + "<b>Czas wykonania:</b> %{customdata[2]}<extra></extra>"
+                )
+                fig_breakdown.update_layout(
+                    font=dict(size=13),
+                    legend=dict(font=dict(size=12)),
                 )
                 st.plotly_chart(fig_breakdown, use_container_width=True)
 
@@ -419,6 +425,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 title=f"Obciążenie bezpośrednie maszyn od {start_date} do {end_date}",
                 custom_data=["Maszyna", "Data_Format", "Czas_produkcji"],
                 labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]", "Data_Format": "Data"},
+                height=500,
             )
 
             fig_range_bar.update_traces(
@@ -478,6 +485,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     title="Obciążenie z przeniesieniem nadgodzin (Limit dobowy 20h)",
                     custom_data=["Maszyna", "Data_Format", "Czas_HHMM"],
                     labels={"Godziny": "Czas [Godziny]", "Data_Format": "Data"},
+                    height=500,
                 )
 
                 fig_carryover.update_traces(
