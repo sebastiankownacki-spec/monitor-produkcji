@@ -77,10 +77,11 @@ wybor_modulu = st.session_state.active_module
 if wybor_modulu == "🏭 Obłożenie Maszyn":
     st.title("🏭 System Monitorowania Obciążenia Parku Maszynowego")
 
-    ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"
-    GID_OBCIAZENIE = "49369695"
+    # ADRESY DANYCH GOOGLE SHEETS
+    ID_OBCIAZENIE = "1vThuF2T2eI7hmHRtVEXAObE3oaCiDB46en9tqF_inZ4"  # Plan produkcyjny
+    GID_OBCIAZENIE = "49369695"  # Zakładka Lech
 
-    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"
+    ID_WYDAJNOSC = "1Q-sZthoUPcF53A9XMNMlwRp1weZYzUxny0Rk-bxig9A"  # Plik z wydajnościami
     GID_WYDAJNOSC = "960305301"
 
     DOBOVA_DOSTEPNOSC_H = 20.0
@@ -113,19 +114,15 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         st.rerun()
 
     try:
-        with st.spinner(
-            "Pobieranie i przeliczanie danych maszyn z Google Sheets..."
-        ):
+        with st.spinner("Pobieranie i przeliczanie danych maszyn z Google Sheets..."):
             df_wydajnosc_raw = fetch_google_sheet(ID_WYDAJNOSC, GID_WYDAJNOSC)
-            df_obciazenie_raw = fetch_google_sheet(
-                ID_OBCIAZENIE, GID_OBCIAZENIE
-            )
+            df_obciazenie_raw = fetch_google_sheet(ID_OBCIAZENIE, GID_OBCIAZENIE)
         st.sidebar.success("✅ Pomyślnie pobrano dane maszyn")
     except Exception as e:
         st.sidebar.error(f"❌ Błąd pobierania danych: {e}")
         st.stop()
 
-    # --- 1. Dynamiczne czyszczenie bazy wydajności ---
+    # --- 1. Czyszczenie bazy wydajności ---
     df_wyd_raw = df_wydajnosc_raw.copy()
     df_wyd_raw.columns = df_wyd_raw.columns.astype(str).str.strip()
 
@@ -147,18 +144,15 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         .str.replace(" ", "")
         .str.replace(",", ".")
     )
-    df_wyd["Wydajnosc_Efektywna"] = pd.to_numeric(
-        df_wyd["Wydajnosc_Efektywna"], errors="coerce"
-    )
+    df_wyd["Wydajnosc_Efektywna"] = pd.to_numeric(df_wyd["Wydajnosc_Efektywna"], errors="coerce")
     df_wyd = df_wyd.dropna(subset=["Maszyna", "Wydajnosc_Efektywna"])
 
-    # WYKLUCZENIE 'Praca ręczna / Brak maszyny' z bazy wydajności
     wystepujace_maszyny = [
         m for m in sorted(df_wyd["Maszyna"].dropna().unique().tolist())
         if "brak maszyny" not in m.lower()
     ]
 
-    # --- 2. Dynamiczne czyszczenie pliku z obciążeniem ---
+    # --- 2. Czyszczenie pliku z obciążeniem ---
     df_obc_raw = df_obciazenie_raw.copy()
     df_obc_raw.columns = df_obc_raw.columns.astype(str).str.strip()
 
@@ -178,11 +172,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     df_obc = df_obc[df_obc["Data"].dt.year >= 2020]
     df_obc["Data_Date"] = df_obc["Data"].dt.date
 
-    df_obc["Is_Szt"] = (
-        df_obc["Ilosc"]
-        .astype(str)
-        .str.contains("szt", case=False, na=False)
-    )
+    df_obc["Is_Szt"] = df_obc["Ilosc"].astype(str).str.contains("szt", case=False, na=False)
     df_obc["Ilosc"] = (
         df_obc["Ilosc"]
         .astype(str)
@@ -194,13 +184,11 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     )
     df_obc["Ilosc"] = pd.to_numeric(df_obc["Ilosc"], errors="coerce")
     
-    # ODRZUCENIE nieprzypisanych wierszy / 'Praca ręczna / Brak maszyny'
     df_obc = df_obc[
         ~df_obc["Maszyna"].astype(str).str.lower().isin(["nan", "none", "", "nan", "praca ręczna / brak maszyny"])
     ]
     df_obc = df_obc.dropna(subset=["Data_Date", "Ilosc", "Maszyna"])
 
-    # Pobranie unikalnych maszyn z obciążenia (z wykluczeniem braku maszyny)
     for m in df_obc["Maszyna"].unique():
         if m not in wystepujace_maszyny and "brak maszyny" not in m.lower():
             wystepujace_maszyny.append(m)
@@ -223,18 +211,10 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         else:
             return ilosc / wydajnosc
 
-    df_merged["ZaplanowaneGodziny_h"] = df_merged.apply(
-        calculate_hours, axis=1
-    )
-    df_daily_sum = (
-        df_merged.groupby(["Data_Date", "Maszyna"])["ZaplanowaneGodziny_h"]
-        .sum()
-        .reset_index()
-    )
+    df_merged["ZaplanowaneGodziny_h"] = df_merged.apply(calculate_hours, axis=1)
+    df_daily_sum = df_merged.groupby(["Data_Date", "Maszyna"])["ZaplanowaneGodziny_h"].sum().reset_index()
 
-    wszystkie_daty = sorted(
-        [d for d in df_obc["Data_Date"].unique() if pd.notna(d)]
-    )
+    wszystkie_daty = sorted([d for d in df_obc["Data_Date"].unique() if pd.notna(d)])
     full_index = (
         pd.MultiIndex.from_product(
             [wszystkie_daty, wystepujace_maszyny], names=["Data_Date", "Maszyna"]
@@ -243,22 +223,14 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         .reset_index(drop=True)
     )
 
-    df_daily_load = full_index.merge(
-        df_daily_sum, on=["Data_Date", "Maszyna"], how="left"
-    )
-    df_daily_load["ZaplanowaneGodziny_h"] = df_daily_load[
-        "ZaplanowaneGodziny_h"
-    ].fillna(0.0)
+    df_daily_load = full_index.merge(df_daily_sum, on=["Data_Date", "Maszyna"], how="left")
+    df_daily_load["ZaplanowaneGodziny_h"] = df_daily_load["ZaplanowaneGodziny_h"].fillna(0.0)
 
     df_daily_load["Data"] = pd.to_datetime(df_daily_load["Data_Date"])
     df_daily_load = df_daily_load.sort_values(by="Data")
 
-    df_daily_load["Czas_produkcji"] = df_daily_load[
-        "ZaplanowaneGodziny_h"
-    ].apply(hours_to_hhmm)
-    df_daily_load["Data_Format"] = df_daily_load["Data"].dt.strftime(
-        "%d.%m.%Y"
-    )
+    df_daily_load["Czas_produkcji"] = df_daily_load["ZaplanowaneGodziny_h"].apply(hours_to_hhmm)
+    df_daily_load["Data_Format"] = df_daily_load["Data"].dt.strftime("%d.%m.%Y")
 
     def assign_status(row):
         if row["ZaplanowaneGodziny_h"] > DOBOVA_DOSTEPNOSC_H:
@@ -270,19 +242,13 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     df_daily_load["Status"] = df_daily_load.apply(assign_status, axis=1)
 
     # ZAKŁADKI MODUŁU MASZYN
-    tab_day, tab_range = st.tabs(
-        ["📅 Podgląd Dzienny", "📊 Zakres Dat dla Maszyny"]
-    )
+    tab_day, tab_range = st.tabs(["📅 Podgląd Dzienny", "📊 Zakres Dat dla Maszyny"])
 
-# --- ZAKŁADKA 1: PODGLĄD DZIENNY ---
+    # --- ZAKŁADKA 1: PODGLĄD DZIENNY ---
     with tab_day:
-        available_dates = sorted(
-            [d for d in df_daily_load["Data_Date"].unique() if pd.notna(d)]
-        )
+        available_dates = sorted([d for d in df_daily_load["Data_Date"].unique() if pd.notna(d)])
         if available_dates:
-            selected_date = st.selectbox(
-                "Wybierz dzień podglądu:", available_dates, key="day_select"
-            )
+            selected_date = st.selectbox("Wybierz dzień podglądu:", available_dates, key="day_select")
             df_day = df_daily_load[df_daily_load["Data_Date"] == selected_date]
 
             st.subheader(f"⚠️ Czas obciążenia maszyn w dniu: {selected_date}")
@@ -294,9 +260,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
             }
 
             # 1. Wykres dla maszyn LECH
-            df_lech = df_day[
-                df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")
-            ]
+            df_lech = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")]
             if not df_lech.empty:
                 st.markdown("### 🏭 Maszyny LECH")
                 fig_lech = px.bar(
@@ -316,27 +280,15 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     + "<b>Data:</b> %{customdata[0]}<br>"
                     + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
                 )
-                fig_lech.add_hline(
-                    y=DOBOVA_DOSTEPNOSC_H,
-                    line_dash="solid",
-                    line_color="green",
-                    annotation_text="20:00:00",
-                )
-                fig_lech.add_hline(
-                    y=LIMIT_MAX_H,
-                    line_dash="solid",
-                    line_color="red",
-                    annotation_text="24:00:00",
-                )
+                fig_lech.add_hline(y=DOBOVA_DOSTEPNOSC_H, line_dash="solid", line_color="green", annotation_text="20:00:00")
+                fig_lech.add_hline(y=LIMIT_MAX_H, line_dash="solid", line_color="red", annotation_text="24:00:00")
                 fig_lech.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_lech, use_container_width=True)
 
             st.markdown("---")
 
             # 2. Wykres dla maszyn H4
-            df_h4 = df_day[
-                df_day["Maszyna"].astype(str).str.lower().str.startswith("h4")
-            ]
+            df_h4 = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("h4")]
             if not df_h4.empty:
                 st.markdown("### 🏭 Maszyny H4")
                 fig_h4 = px.bar(
@@ -356,26 +308,71 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     + "<b>Data:</b> %{customdata[0]}<br>"
                     + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
                 )
-                fig_h4.add_hline(
-                    y=DOBOVA_DOSTEPNOSC_H,
-                    line_dash="solid",
-                    line_color="green",
-                    annotation_text="20:00:00",
-                )
-                fig_h4.add_hline(
-                    y=LIMIT_MAX_H,
-                    line_dash="solid",
-                    line_color="red",
-                    annotation_text="24:00:00",
-                )
+                fig_h4.add_hline(y=DOBOVA_DOSTEPNOSC_H, line_dash="solid", line_color="green", annotation_text="20:00:00")
+                fig_h4.add_hline(y=LIMIT_MAX_H, line_dash="solid", line_color="red", annotation_text="24:00:00")
                 fig_h4.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_h4, use_container_width=True)
 
+            # ------------------------------------------------------------------------------
+            # SZCZEGÓŁOWA ANALIZA PRZECIĄŻENIA (DRILL-DOWN DLA SKŁADNIKÓW)
+            # ------------------------------------------------------------------------------
+            st.divider()
+            st.subheader("🔍 Szczegółowa analiza przeciążeń (Składniki / Zadania)")
+
+            df_merged_day = df_merged[df_merged["Data_Date"] == selected_date].copy()
+            overloaded_machines = df_day[df_day["ZaplanowaneGodziny_h"] > 20.0]["Maszyna"].tolist()
+
+            if overloaded_machines:
+                st.error(f"🚨 Wykryto przeciążenie dla maszyn: {', '.join(overloaded_machines)}")
+
+                df_overloaded_details = df_merged_day[df_merged_day["Maszyna"].isin(overloaded_machines)].copy()
+
+                df_breakdown = (
+                    df_overloaded_details.groupby(["Maszyna", "Skladnik"])[["Ilosc", "ZaplanowaneGodziny_h"]]
+                    .sum()
+                    .reset_index()
+                )
+                df_breakdown["Czas_HHMM"] = df_breakdown["ZaplanowaneGodziny_h"].apply(hours_to_hhmm)
+                df_breakdown = df_breakdown.sort_values(by="ZaplanowaneGodziny_h", ascending=False)
+
+                fig_breakdown = px.bar(
+                    df_breakdown,
+                    x="Maszyna",
+                    y="ZaplanowaneGodziny_h",
+                    color="Skladnik",
+                    title="Struktura czasowa składników na przeciążonych maszynach",
+                    text="Czas_HHMM",
+                    custom_data=["Skladnik", "Ilosc", "Czas_HHMM"],
+                    labels={"ZaplanowaneGodziny_h": "Czas [Godziny]", "Skladnik": "Składnik / Produkcja"},
+                )
+
+                fig_breakdown.update_traces(
+                    hovertemplate="<b>Składnik:</b> %{customdata[0]}<br>"
+                    + "<b>Ilość:</b> %{customdata[1]} kg/szt<br>"
+                    + "<b>Czas wykonania:</b> %{customdata[2]}<extra></extra>"
+                )
+                st.plotly_chart(fig_breakdown, use_container_width=True)
+
+                with st.expander("📋 Tabela składników powodujących przeciążenie"):
+                    st.dataframe(
+                        df_breakdown[["Maszyna", "Skladnik", "Ilosc", "Czas_HHMM"]].rename(
+                            columns={
+                                "Skladnik": "Składnik / Danie",
+                                "Ilosc": "Zaplanowana ilość",
+                                "Czas_HHMM": "Wymagany czas",
+                            }
+                        ),
+                        use_container_width=True,
+                    )
+            else:
+                st.success("✅ Brak przeciążonych maszyn w wybranym dniu.")
+
+            st.divider()
             with st.expander("📋 Szczegółowa tabela danych"):
                 st.dataframe(
-                    df_day[
-                        ["Data_Format", "Maszyna", "Czas_produkcji", "Status"]
-                    ].rename(columns={"Data_Format": "Data"}),
+                    df_day[["Data_Format", "Maszyna", "Czas_produkcji", "Status"]].rename(
+                        columns={"Data_Format": "Data"}
+                    ),
                     use_container_width=True,
                 )
 
@@ -383,38 +380,17 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
     with tab_range:
         st.subheader("📊 Czas pracy maszyn w przedziale czasowym")
 
-        all_dates = sorted(
-            [d for d in df_daily_load["Data_Date"].unique() if pd.notna(d)]
-        )
+        all_dates = sorted([d for d in df_daily_load["Data_Date"].unique() if pd.notna(d)])
         all_machines = sorted(df_daily_load["Maszyna"].unique())
 
         col_f1, col_f2, col_f3 = st.columns(3)
 
         with col_f1:
-            start_date = st.date_input(
-                "Data od:",
-                min_value=min(all_dates),
-                max_value=max(all_dates),
-                value=min(all_dates),
-                key="r_start",
-            )
+            start_date = st.date_input("Data od:", min_value=min(all_dates), max_value=max(all_dates), value=min(all_dates), key="r_start")
         with col_f2:
-            end_date = st.date_input(
-                "Data do:",
-                min_value=min(all_dates),
-                max_value=max(all_dates),
-                value=max(all_dates),
-                key="r_end",
-            )
+            end_date = st.date_input("Data do:", min_value=min(all_dates), max_value=max(all_dates), value=max(all_dates), key="r_end")
         with col_f3:
-            selected_machines = st.multiselect(
-                "Wybierz maszyny:",
-                options=all_machines,
-                default=all_machines[:1]
-                if len(all_machines) >= 1
-                else all_machines,
-                key="r_mach",
-            )
+            selected_machines = st.multiselect("Wybierz maszyny:", options=all_machines, default=all_machines[:1] if len(all_machines) >= 1 else all_machines, key="r_mach")
 
         df_range = df_daily_load[
             (df_daily_load["Data_Date"] >= start_date)
@@ -433,10 +409,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 text="Czas_produkcji",
                 title=f"Obciążenie bezpośrednie maszyn od {start_date} do {end_date}",
                 custom_data=["Maszyna", "Data_Format", "Czas_produkcji"],
-                labels={
-                    "ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]",
-                    "Data_Format": "Data",
-                },
+                labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]", "Data_Format": "Data"},
             )
 
             fig_range_bar.update_traces(
@@ -446,18 +419,8 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 + "<b>Czas:</b> %{customdata[2]}<extra></extra>",
             )
 
-            fig_range_bar.add_hline(
-                y=DOBOVA_DOSTEPNOSC_H,
-                line_dash="solid",
-                line_color="green",
-                annotation_text="20:00:00",
-            )
-            fig_range_bar.add_hline(
-                y=LIMIT_MAX_H,
-                line_dash="solid",
-                line_color="red",
-                annotation_text="24:00:00",
-            )
+            fig_range_bar.add_hline(y=DOBOVA_DOSTEPNOSC_H, line_dash="solid", line_color="green", annotation_text="20:00:00")
+            fig_range_bar.add_hline(y=LIMIT_MAX_H, line_dash="solid", line_color="red", annotation_text="24:00:00")
             fig_range_bar.update_xaxes(tickangle=-45)
             st.plotly_chart(fig_range_bar, use_container_width=True)
 
@@ -468,40 +431,30 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
             carryover_rows = []
 
             for m in selected_machines:
-                df_m = (
-                    df_range[df_range["Maszyna"] == m]
-                    .sort_values(by="Data")
-                    .copy()
-                )
+                df_m = df_range[df_range["Maszyna"] == m].sort_values(by="Data").copy()
                 carryover_hours = 0.0
 
                 for idx, row in df_m.iterrows():
                     total_needed = row["ZaplanowaneGodziny_h"] + carryover_hours
 
                     if total_needed > 0:
-                        effective_hours = min(
-                            total_needed, DOBOVA_DOSTEPNOSC_H
-                        )
+                        effective_hours = min(total_needed, DOBOVA_DOSTEPNOSC_H)
                         carryover_hours = total_needed - effective_hours
 
-                        carryover_rows.append(
-                            {
-                                "Maszyna": m,
-                                "Data_Format": row["Data_Format"],
-                                "Godziny": effective_hours,
-                                "Czas_HHMM": hours_to_hhmm(effective_hours),
-                            }
-                        )
+                        carryover_rows.append({
+                            "Maszyna": m,
+                            "Data_Format": row["Data_Format"],
+                            "Godziny": effective_hours,
+                            "Czas_HHMM": hours_to_hhmm(effective_hours),
+                        })
                     else:
                         carryover_hours = 0.0
-                        carryover_rows.append(
-                            {
-                                "Maszyna": m,
-                                "Data_Format": row["Data_Format"],
-                                "Godziny": 0.0,
-                                "Czas_HHMM": "0:00",
-                            }
-                        )
+                        carryover_rows.append({
+                            "Maszyna": m,
+                            "Data_Format": row["Data_Format"],
+                            "Godziny": 0.0,
+                            "Czas_HHMM": "0:00",
+                        })
 
             if carryover_rows:
                 df_carryover = pd.DataFrame(carryover_rows)
@@ -525,32 +478,18 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     + "<b>Czas z przeniesieniem:</b> %{customdata[2]}<extra></extra>",
                 )
 
-                fig_carryover.add_hline(
-                    y=DOBOVA_DOSTEPNOSC_H,
-                    line_dash="solid",
-                    line_color="green",
-                    annotation_text="20:00:00",
-                )
-                fig_carryover.add_hline(
-                    y=LIMIT_MAX_H,
-                    line_dash="solid",
-                    line_color="red",
-                    annotation_text="24:00:00",
-                )
+                fig_carryover.add_hline(y=DOBOVA_DOSTEPNOSC_H, line_dash="solid", line_color="green", annotation_text="20:00:00")
+                fig_carryover.add_hline(y=LIMIT_MAX_H, line_dash="solid", line_color="red", annotation_text="24:00:00")
                 fig_carryover.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_carryover, use_container_width=True)
 
             with st.expander("📋 Tabela czasowa z wybranego okresu"):
                 st.dataframe(
-                    df_range[
-                        ["Data_Format", "Maszyna", "Czas_produkcji", "Status"]
-                    ].rename(columns={"Data_Format": "Data"}),
+                    df_range[["Data_Format", "Maszyna", "Czas_produkcji", "Status"]].rename(columns={"Data_Format": "Data"}),
                     use_container_width=True,
                 )
         else:
-            st.info(
-                "Brak danych dla wybranego zakresu dat lub wybranych maszyn."
-            )
+            st.info("Brak danych dla wybranego zakresu dat lub wybranych maszyn.")
 
 
 # ==============================================================================
@@ -578,11 +517,7 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
 
         df.columns = df.columns.astype(str).str.replace("#", "").str.strip()
 
-        week_col = [
-            c
-            for c in df.columns
-            if "tydzień" in c.lower() or "tydzien" in c.lower()
-        ]
+        week_col = [c for c in df.columns if "tydzień" in c.lower() or "tydzien" in c.lower()]
         if week_col:
             df = df.rename(columns={week_col[0]: "Tydzień matrycy"})
 
@@ -593,9 +528,7 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
                 break
 
         if not prognoza_col:
-            st.error(
-                f"Nie znaleziono kolumny 'prognoza'. Dostępne kolumny: {list(df.columns)}"
-            )
+            st.error(f"Nie znaleziono kolumny 'prognoza'. Dostępne kolumny: {list(df.columns)}")
             st.stop()
 
         df = df.rename(columns={prognoza_col: "prognoza"})
@@ -607,7 +540,6 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
         df["Data menu"] = pd.to_datetime(df["Data menu"], errors="coerce")
         df = df.dropna(subset=["Data menu"])
 
-        # Odrzucanie błędnych dat z XIX wieku
         df = df[df["Data menu"].dt.year >= 2020]
 
         df["prognoza"] = (
@@ -616,14 +548,10 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
             .str.replace(",", ".")
             .str.replace(r"[^\d.]", "", regex=True)
         )
-        df["prognoza"] = pd.to_numeric(df["prognoza"], errors="coerce").fillna(
-            0.0
-        )
+        df["prognoza"] = pd.to_numeric(df["prognoza"], errors="coerce").fillna(0.0)
 
         if "Tydzień matrycy" in df.columns:
-            df["Tydzień matrycy"] = pd.to_numeric(
-                df["Tydzień matrycy"], errors="coerce"
-            )
+            df["Tydzień matrycy"] = pd.to_numeric(df["Tydzień matrycy"], errors="coerce")
             df = df[df["Tydzień matrycy"].isin([1, 2, 3, 4])]
             df["Tydzień matrycy"] = df["Tydzień matrycy"].astype(int)
 
@@ -640,11 +568,7 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
     selected_weeks = []
     if "Tydzień matrycy" in df_w.columns:
         all_weeks = sorted(df_w["Tydzień matrycy"].unique().tolist())
-        selected_weeks = st.sidebar.multiselect(
-            "Tydzień matrycy:",
-            options=all_weeks,
-            default=all_weeks,
-        )
+        selected_weeks = st.sidebar.multiselect("Tydzień matrycy:", options=all_weeks, default=all_weeks)
 
     st.sidebar.subheader("📅 Zakres dat")
     min_date = df_w["Data menu"].min().date()
@@ -652,51 +576,21 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
 
     col_date1, col_date2 = st.sidebar.columns(2)
     with col_date1:
-        start_date_w = st.date_input(
-            "Data od:",
-            value=min_date,
-            min_value=min_date,
-            max_value=max_date,
-            key="w_start",
-        )
+        start_date_w = st.date_input("Data od:", value=min_date, min_value=min_date, max_value=max_date, key="w_start")
     with col_date2:
-        end_date_w = st.date_input(
-            "Data do:",
-            value=max_date,
-            min_value=min_date,
-            max_value=max_date,
-            key="w_end",
-        )
+        end_date_w = st.date_input("Data do:", value=max_date, min_value=min_date, max_value=max_date, key="w_end")
 
     def get_unique_w(col_name):
-        return (
-            sorted(df_w[col_name].dropna().unique().tolist())
-            if col_name in df_w.columns
-            else []
-        )
+        return sorted(df_w[col_name].dropna().unique().tolist()) if col_name in df_w.columns else []
 
-    selected_products = st.sidebar.multiselect(
-        "Rodzaj produktu:",
-        options=get_unique_w("RODZAJ PRODUKTU"),
-        default=get_unique_w("RODZAJ PRODUKTU"),
-    )
-    selected_diets = st.sidebar.multiselect(
-        "Dieta:",
-        options=get_unique_w("DIETA/DATA"),
-        default=get_unique_w("DIETA/DATA"),
-    )
-    selected_meals = st.sidebar.multiselect(
-        "Posiłek:",
-        options=get_unique_w("POSIŁEK"),
-        default=get_unique_w("POSIŁEK"),
-    )
+    selected_products = st.sidebar.multiselect("Rodzaj produktu:", options=get_unique_w("RODZAJ PRODUKTU"), default=get_unique_w("RODZAJ PRODUKTU"))
+    selected_diets = st.sidebar.multiselect("Dieta:", options=get_unique_w("DIETA/DATA"), default=get_unique_w("DIETA/DATA"))
+    selected_meals = st.sidebar.multiselect("Posiłek:", options=get_unique_w("POSIŁEK"), default=get_unique_w("POSIŁEK"))
 
     filtered_df_w = df_w.copy()
 
     if "Tydzień matrycy" in filtered_df_w.columns and selected_weeks:
-        filtered_df_w = filtered_df_w[
-            filtered_df_w["Tydzień matrycy"].isin(selected_weeks)
-        ]
+        filtered_df_w = filtered_df_w[filtered_df_w["Tydzień matrycy"].isin(selected_weeks)]
 
     if start_date_w and end_date_w:
         filtered_df_w = filtered_df_w[
@@ -705,19 +599,13 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
         ]
 
     if selected_products and "RODZAJ PRODUKTU" in filtered_df_w.columns:
-        filtered_df_w = filtered_df_w[
-            filtered_df_w["RODZAJ PRODUKTU"].isin(selected_products)
-        ]
+        filtered_df_w = filtered_df_w[filtered_df_w["RODZAJ PRODUKTU"].isin(selected_products)]
 
     if selected_diets and "DIETA/DATA" in filtered_df_w.columns:
-        filtered_df_w = filtered_df_w[
-            filtered_df_w["DIETA/DATA"].isin(selected_diets)
-        ]
+        filtered_df_w = filtered_df_w[filtered_df_w["DIETA/DATA"].isin(selected_diets)]
 
     if selected_meals and "POSIŁEK" in filtered_df_w.columns:
-        filtered_df_w = filtered_df_w[
-            filtered_df_w["POSIŁEK"].isin(selected_meals)
-        ]
+        filtered_df_w = filtered_df_w[filtered_df_w["POSIŁEK"].isin(selected_meals)]
 
     # Kafelki KPI
     col1, col2, col3, col4 = st.columns(4)
@@ -749,32 +637,18 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
         st.header("⚖️ Porównanie Tygodni Matrycy")
         col_comp1, col_comp2 = st.columns(2)
         comp_df = filtered_df_w.copy()
-        comp_df["Tydzień Etykieta"] = "Tydzień " + comp_df[
-            "Tydzień matrycy"
-        ].astype(str)
+        comp_df["Tydzień Etykieta"] = "Tydzień " + comp_df["Tydzień matrycy"].astype(str)
 
         with col_comp1:
-            st.subheader(
-                "Porównanie zużycia produktów w poszczególnych tygodniach"
-            )
-            week_prod = (
-                comp_df.groupby(["RODZAJ PRODUKTU", "Tydzień Etykieta"])[
-                    "prognoza"
-                ]
-                .sum()
-                .reset_index()
-            )
+            st.subheader("Porównanie zużycia produktów w poszczególnych tygodniach")
+            week_prod = comp_df.groupby(["RODZAJ PRODUKTU", "Tydzień Etykieta"])["prognoza"].sum().reset_index()
             fig_week_comp = px.bar(
                 week_prod,
                 x="RODZAJ PRODUKTU",
                 y="prognoza",
                 color="Tydzień Etykieta",
                 barmode="group",
-                labels={
-                    "prognoza": "Suma (kg)",
-                    "RODZAJ PRODUKTU": "Wędlina",
-                    "Tydzień Etykieta": "Tydzień",
-                },
+                labels={"prognoza": "Suma (kg)", "RODZAJ PRODUKTU": "Wędlina", "Tydzień Etykieta": "Tydzień"},
                 title="Zużycie produktów w podziale na Tygodnie Matrycy",
             )
             fig_week_comp.update_xaxes(tickangle=-45)
@@ -782,22 +656,14 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
 
         with col_comp2:
             st.subheader("Łączny tonaż w poszczególnych tygodniach")
-            week_totals = (
-                comp_df.groupby("Tydzień Etykieta")["prognoza"]
-                .sum()
-                .reset_index()
-                .sort_values(by="Tydzień Etykieta")
-            )
+            week_totals = comp_df.groupby("Tydzień Etykieta")["prognoza"].sum().reset_index().sort_values(by="Tydzień Etykieta")
             fig_week_totals = px.bar(
                 week_totals,
                 x="Tydzień Etykieta",
                 y="prognoza",
                 color="Tydzień Etykieta",
                 text_auto=".1f",
-                labels={
-                    "prognoza": "Suma łączna (kg)",
-                    "Tydzień Etykieta": "Tydzień",
-                },
+                labels={"prognoza": "Suma łączna (kg)", "Tydzień Etykieta": "Tydzień"},
                 title="Całkowite zużycie wędlin w każdym tygodniu",
             )
             st.plotly_chart(fig_week_totals, use_container_width=True)
@@ -809,13 +675,7 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
     with col_chart1:
         st.subheader("📆 Dziennie zużycie według produktów (kg)")
         if "RODZAJ PRODUKTU" in filtered_df_w.columns:
-            daily_prod = (
-                filtered_df_w.groupby(["Data menu", "RODZAJ PRODUKTU"])[
-                    "prognoza"
-                ]
-                .sum()
-                .reset_index()
-            )
+            daily_prod = filtered_df_w.groupby(["Data menu", "RODZAJ PRODUKTU"])["prognoza"].sum().reset_index()
             fig_daily = px.bar(
                 daily_prod,
                 x="Data menu",
@@ -830,21 +690,13 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
     with col_chart2:
         st.subheader("🏆 Ranking wędlin (Suma w kg)")
         if "RODZAJ PRODUKTU" in filtered_df_w.columns:
-            top_wedliny = (
-                filtered_df_w.groupby("RODZAJ PRODUKTU")["prognoza"]
-                .sum()
-                .reset_index()
-                .sort_values(by="prognoza", ascending=True)
-            )
+            top_wedliny = filtered_df_w.groupby("RODZAJ PRODUKTU")["prognoza"].sum().reset_index().sort_values(by="prognoza", ascending=True)
             fig_top = px.bar(
                 top_wedliny,
                 x="prognoza",
                 y="RODZAJ PRODUKTU",
                 orientation="h",
-                labels={
-                    "prognoza": "Suma (kg)",
-                    "RODZAJ PRODUKTU": "Wędlina",
-                },
+                labels={"prognoza": "Suma (kg)", "RODZAJ PRODUKTU": "Wędlina"},
                 color="prognoza",
                 color_continuous_scale="Viridis",
             )
@@ -854,27 +706,15 @@ elif wybor_modulu == "🥩 Monitor Wędlin":
     with col_chart3:
         st.subheader("🥗 Udział Diet w zużyciu")
         if "DIETA/DATA" in filtered_df_w.columns:
-            diet_share = (
-                filtered_df_w.groupby("DIETA/DATA")["prognoza"]
-                .sum()
-                .reset_index()
-            )
-            fig_diet = px.pie(
-                diet_share, names="DIETA/DATA", values="prognoza", hole=0.4
-            )
+            diet_share = filtered_df_w.groupby("DIETA/DATA")["prognoza"].sum().reset_index()
+            fig_diet = px.pie(diet_share, names="DIETA/DATA", values="prognoza", hole=0.4)
             st.plotly_chart(fig_diet, use_container_width=True)
 
     with col_chart4:
         st.subheader("🍳 Udział Posiłków")
         if "POSIŁEK" in filtered_df_w.columns:
-            meal_share = (
-                filtered_df_w.groupby("POSIŁEK")["prognoza"]
-                .sum()
-                .reset_index()
-            )
-            fig_meal = px.pie(
-                meal_share, names="POSIŁEK", values="prognoza", hole=0.4
-            )
+            meal_share = filtered_df_w.groupby("POSIŁEK")["prognoza"].sum().reset_index()
+            fig_meal = px.pie(meal_share, names="POSIŁEK", values="prognoza", hole=0.4)
             st.plotly_chart(fig_meal, use_container_width=True)
 
     st.divider()
