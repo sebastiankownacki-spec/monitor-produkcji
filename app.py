@@ -274,7 +274,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
         ["📅 Podgląd Dzienny", "📊 Zakres Dat dla Maszyny"]
     )
 
-    # --- ZAKŁADKA 1: PODGLĄD DZIENNY ---
+# --- ZAKŁADKA 1: PODGLĄD DZIENNY ---
     with tab_day:
         available_dates = sorted(
             [d for d in df_daily_load["Data_Date"].unique() if pd.notna(d)]
@@ -293,39 +293,83 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 "Norma (04:00 - 20:00)": "#636efa",
             }
 
-            fig_bar = px.bar(
-                df_day,
-                x="Maszyna",
-                y="ZaplanowaneGodziny_h",
-                color="Status",
-                color_discrete_map=color_map,
-                text="Czas_produkcji",
-                title=f"Liczba zaplanowanych godzin pracy maszyn ({selected_date})",
-                custom_data=["Data_Format", "Czas_produkcji"],
-                labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
-            )
+            # 1. Wykres dla maszyn LECH
+            df_lech = df_day[
+                df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")
+            ]
+            if not df_lech.empty:
+                st.markdown("### 🏭 Maszyny LECH")
+                fig_lech = px.bar(
+                    df_lech,
+                    x="Maszyna",
+                    y="ZaplanowaneGodziny_h",
+                    color="Status",
+                    color_discrete_map=color_map,
+                    text="Czas_produkcji",
+                    title=f"Liczba zaplanowanych godzin pracy maszyn LECH ({selected_date})",
+                    custom_data=["Data_Format", "Czas_produkcji"],
+                    labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
+                )
+                fig_lech.update_traces(
+                    textposition="outside",
+                    hovertemplate="<b>Maszyna:</b> %{x}<br>"
+                    + "<b>Data:</b> %{customdata[0]}<br>"
+                    + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
+                )
+                fig_lech.add_hline(
+                    y=DOBOVA_DOSTEPNOSC_H,
+                    line_dash="solid",
+                    line_color="green",
+                    annotation_text="20:00:00",
+                )
+                fig_lech.add_hline(
+                    y=LIMIT_MAX_H,
+                    line_dash="solid",
+                    line_color="red",
+                    annotation_text="24:00:00",
+                )
+                fig_lech.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_lech, use_container_width=True)
 
-            fig_bar.update_traces(
-                textposition="outside",
-                hovertemplate="<b>Maszyna:</b> %{x}<br>"
-                + "<b>Data:</b> %{customdata[0]}<br>"
-                + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
-            )
+            st.markdown("---")
 
-            fig_bar.add_hline(
-                y=DOBOVA_DOSTEPNOSC_H,
-                line_dash="solid",
-                line_color="green",
-                annotation_text="20:00:00",
-            )
-            fig_bar.add_hline(
-                y=LIMIT_MAX_H,
-                line_dash="solid",
-                line_color="red",
-                annotation_text="24:00:00",
-            )
-            fig_bar.update_xaxes(tickangle=-45)
-            st.plotly_chart(fig_bar, use_container_width=True)
+            # 2. Wykres dla maszyn H4
+            df_h4 = df_day[
+                df_day["Maszyna"].astype(str).str.lower().str.startswith("h4")
+            ]
+            if not df_h4.empty:
+                st.markdown("### 🏭 Maszyny H4")
+                fig_h4 = px.bar(
+                    df_h4,
+                    x="Maszyna",
+                    y="ZaplanowaneGodziny_h",
+                    color="Status",
+                    color_discrete_map=color_map,
+                    text="Czas_produkcji",
+                    title=f"Liczba zaplanowanych godzin pracy maszyn H4 ({selected_date})",
+                    custom_data=["Data_Format", "Czas_produkcji"],
+                    labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
+                )
+                fig_h4.update_traces(
+                    textposition="outside",
+                    hovertemplate="<b>Maszyna:</b> %{x}<br>"
+                    + "<b>Data:</b> %{customdata[0]}<br>"
+                    + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
+                )
+                fig_h4.add_hline(
+                    y=DOBOVA_DOSTEPNOSC_H,
+                    line_dash="solid",
+                    line_color="green",
+                    annotation_text="20:00:00",
+                )
+                fig_h4.add_hline(
+                    y=LIMIT_MAX_H,
+                    line_dash="solid",
+                    line_color="red",
+                    annotation_text="24:00:00",
+                )
+                fig_h4.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_h4, use_container_width=True)
 
             with st.expander("📋 Szczegółowa tabela danych"):
                 st.dataframe(
