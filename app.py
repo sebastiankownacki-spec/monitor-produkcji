@@ -255,9 +255,16 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
 
             color_map = {
                 "PRZECIĄŻENIE (>20:00)": "#ef553b",
-                "ZASTÓJ (<04:00)": "#ffa15a",
                 "Norma (04:00 - 20:00)": "#636efa",
+                "ZASTÓJ (<04:00)": "#ffa15a",
             }
+
+            # Wymuszona kolejność statusów w legendzie
+            status_order = [
+                "PRZECIĄŻENIE (>20:00)",
+                "Norma (04:00 - 20:00)",
+                "ZASTÓJ (<04:00)",
+            ]
 
             # 1. Wykres dla maszyn LECH
             df_lech = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")]
@@ -269,6 +276,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     y="ZaplanowaneGodziny_h",
                     color="Status",
                     color_discrete_map=color_map,
+                    category_orders={"Status": status_order},
                     text="Czas_produkcji",
                     title=f"Liczba zaplanowanych godzin pracy maszyn LECH ({selected_date})",
                     custom_data=["Data_Format", "Czas_produkcji"],
@@ -297,6 +305,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     y="ZaplanowaneGodziny_h",
                     color="Status",
                     color_discrete_map=color_map,
+                    category_orders={"Status": status_order},
                     text="Czas_produkcji",
                     title=f"Liczba zaplanowanych godzin pracy maszyn H4 ({selected_date})",
                     custom_data=["Data_Format", "Czas_produkcji"],
