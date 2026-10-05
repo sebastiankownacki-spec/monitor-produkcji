@@ -265,7 +265,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 "ZASTÓJ (<04:00)",
             ]
 
-            # 1. Wykres dla maszyn LECH (powiększony do height=500)
+            # 1. Wykres dla maszyn LECH
             df_lech = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("lech")]
             if not df_lech.empty:
                 st.markdown("### 🏭 Maszyny LECH")
@@ -295,7 +295,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
 
             st.markdown("---")
 
-            # 2. Wykres dla maszyn H4 (powiększony do height=500)
+            # 2. Wykres dla maszyn H4
             df_h4 = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("h4")]
             if not df_h4.empty:
                 st.markdown("### 🏭 Maszyny H4")
@@ -323,8 +323,38 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                 fig_h4.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_h4, use_container_width=True)
 
+            st.markdown("---")
+
+            # 3. Wykres dla maszyn PIEROGARNIA
+            df_pierogarnia = df_day[df_day["Maszyna"].astype(str).str.lower().str.startswith("pierogarnia")]
+            if not df_pierogarnia.empty:
+                st.markdown("### 🏭 Maszyny PIEROGARNIA")
+                fig_pierogarnia = px.bar(
+                    df_pierogarnia,
+                    x="Maszyna",
+                    y="ZaplanowaneGodziny_h",
+                    color="Status",
+                    color_discrete_map=color_map,
+                    category_orders={"Status": status_order},
+                    text="Czas_produkcji",
+                    title=f"Liczba zaplanowanych godzin pracy maszyn PIEROGARNIA ({selected_date})",
+                    custom_data=["Data_Format", "Czas_produkcji"],
+                    labels={"ZaplanowaneGodziny_h": "Zaplanowany Czas [Godziny]"},
+                    height=500,
+                )
+                fig_pierogarnia.update_traces(
+                    textposition="outside",
+                    hovertemplate="<b>Maszyna:</b> %{x}<br>"
+                    + "<b>Data:</b> %{customdata[0]}<br>"
+                    + "<b>Czas produkcji:</b> %{customdata[1]}<extra></extra>",
+                )
+                fig_pierogarnia.add_hline(y=DOBOVA_DOSTEPNOSC_H, line_dash="solid", line_color="green", annotation_text="20:00:00")
+                fig_pierogarnia.add_hline(y=LIMIT_MAX_H, line_dash="solid", line_color="red", annotation_text="24:00:00")
+                fig_pierogarnia.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_pierogarnia, use_container_width=True)
+
             # ------------------------------------------------------------------------------
-            # SZCZEGÓŁOWA ANALIZA PRZECIĄŻENIA (WYŻSZY I BARDZIEJ CZYTELNY WYKRES)
+            # SZCZEGÓŁOWA ANALIZA PRZECIĄŻENIA
             # ------------------------------------------------------------------------------
             st.divider()
             st.subheader("🔍 Szczegółowa analiza przeciążeń (Składniki / Zadania)")
@@ -354,7 +384,7 @@ if wybor_modulu == "🏭 Obłożenie Maszyn":
                     text="Czas_HHMM",
                     custom_data=["Skladnik", "Ilosc", "Czas_HHMM"],
                     labels={"ZaplanowaneGodziny_h": "Czas [Godziny]", "Skladnik": "Składnik / Produkcja"},
-                    height=1350,  # DUŻA WYSOKOŚĆ DLA CZYTELNOŚCI SKŁADNIKÓW
+                    height=1350,
                 )
 
                 fig_breakdown.update_traces(
